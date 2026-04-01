@@ -3,7 +3,7 @@
 
   github:
     token: ${GITHUB_TOKEN}
-    userName: ${GITHUB_USERNAME}
+    username: ${GITHUB_USERNAME}
     content-repo: seung-content
 
   jwt:
