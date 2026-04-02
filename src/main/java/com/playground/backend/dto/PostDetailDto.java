@@ -13,5 +13,5 @@ public class PostDetailDto {
     private String date;
     private String description;
     private String content;
-    private String fileName;
+    private String filename;
 }

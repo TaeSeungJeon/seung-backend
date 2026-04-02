@@ -13,5 +13,5 @@ public class PostSummaryDto {
     private String title;
     private String date;
     private String description;
-    private String fileName;
+    private String filename;
 }

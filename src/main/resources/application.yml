@@ -21,3 +21,6 @@
               scope:
                 - read:user
                 - user:email
+
+  cors:
+    allowed-origins: http://localhost:5173,https://TaeSeungJeon.github.io
