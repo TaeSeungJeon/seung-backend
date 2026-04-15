@@ -1,5 +1,6 @@
 package com.playground.backend.controller;
 
+import com.playground.backend.dto.CommentRequestDto;
 import com.playground.backend.dto.GuestbookRequestDto;
 import com.playground.backend.dto.GuestbookResponseDto;
 import com.playground.backend.service.GuestbookService;
@@ -28,6 +29,16 @@ public class GuestbookController {
             @AuthenticationPrincipal String username
     ) {
         return ResponseEntity.ok(guestbookService.createGuestbook(req, username));
+    }
+
+    // 신규
+    @PostMapping("/{id}/reply")
+    public ResponseEntity<GuestbookResponseDto> createReply(
+            @PathVariable Long id,
+            @RequestBody CommentRequestDto req,
+            @AuthenticationPrincipal String username
+    ) {
+        return ResponseEntity.ok(guestbookService.createGuestbookReply(id, req.getContent(), username));
     }
 
     @DeleteMapping("/{id}")

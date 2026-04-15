@@ -5,12 +5,11 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class GuestbookResponseDto {
+public class CommentResponseDto {
     private Long id;
-    private String title;
-    private String content;
     private String author;
     private String avatarUrl;
+    private String content;
     private String createdAt;
     private ReplyDto reply;
 }

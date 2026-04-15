@@ -1,7 +1,7 @@
 package com.playground.backend.service;
 
-import com.playground.backend.dto.GuestbookRequestDto;
-import com.playground.backend.dto.GuestbookResponseDto;
+import com.playground.backend.dto.CommentRequestDto;
+import com.playground.backend.dto.CommentResponseDto;
 import com.playground.backend.dto.ReplyDto;
 import com.playground.backend.exception.CustomException;
 import lombok.RequiredArgsConstructor;
@@ -18,10 +18,10 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class GuestbookService {
+public class CommentService {
 
     @Value("${github.username}")
-    private String username;
+    private String ownerUsername;
 
     @Value("${github.content-repo}")
     private String contentRepo;
@@ -29,111 +29,98 @@ public class GuestbookService {
     private final GitHubApiClient gitHubApiClient;
 
     private static final Pattern META_PATTERN =
-            Pattern.compile("^<!-- guestbook-author: (\\S+) avatar: (\\S+) -->\\n?");
+            Pattern.compile("^<!-- comment-post: (\\S+) author: (\\S+) avatar: (\\S+) -->\\n?");
 
-    public List<GuestbookResponseDto> getGuestbook() {
+    public List<CommentResponseDto> getComments(String filename) {
         String url = String.format(
-                "https://api.github.com/repos/%s/%s/issues?state=open&labels=guestbook",
-                username, contentRepo
+                "https://api.github.com/repos/%s/%s/issues?state=open&labels=post-comment&per_page=100",
+                ownerUsername, contentRepo
         );
         List<Map<String, Object>> issues = gitHubApiClient.get(url, new ParameterizedTypeReference<>() {});
+
         return issues.stream()
-                .map(this::mapToGuestbookResponse)
+                .filter(issue -> filename.equals(parseFilename((String) issue.get("body"))))
+                .map(this::mapToCommentResponse)
                 .collect(Collectors.toList());
     }
 
-    public GuestbookResponseDto createGuestbook(GuestbookRequestDto req, String author) {
+    public CommentResponseDto createComment(String filename, CommentRequestDto req, String author) {
         String url = String.format(
-                "https://api.github.com/repos/%s/%s/issues", username, contentRepo
+                "https://api.github.com/repos/%s/%s/issues", ownerUsername, contentRepo
         );
         String avatarUrl = "https://github.com/" + author + ".png";
-        String bodyWithMeta = "<!-- guestbook-author: " + author
+        String bodyWithMeta = "<!-- comment-post: " + filename
+                + " author: " + author
                 + " avatar: " + avatarUrl + " -->\n"
                 + req.getContent();
 
         Map<String, Object> body = Map.of(
-                "title", req.getTitle(),
+                "title", "[comment] " + filename + " by " + author,
                 "body", bodyWithMeta,
-                "labels", List.of("guestbook")
+                "labels", List.of("post-comment")
         );
         Map<String, Object> issue = gitHubApiClient.post(url, body, new ParameterizedTypeReference<>() {});
-        return mapToGuestbookResponse(issue);
+        return mapToCommentResponse(issue);
     }
 
-    // 신규 — 오너만 답글
-    public GuestbookResponseDto createGuestbookReply(Long issueNumber, String content, String requestingUser) {
-        if (!requestingUser.equals(username)) {
-            throw new CustomException(HttpStatus.FORBIDDEN, "방명록 답글은 블로그 주인만 작성할 수 있습니다.");
+    public CommentResponseDto createReply(Long issueNumber, String content, String requestingUser) {
+        if (!requestingUser.equals(ownerUsername)) {
+            throw new CustomException(HttpStatus.FORBIDDEN, "블로그 주인장만 작성할 수 있습니다.");
         }
         String replyUrl = String.format(
                 "https://api.github.com/repos/%s/%s/issues/%d/comments",
-                username, contentRepo, issueNumber
+                ownerUsername, contentRepo, issueNumber
         );
         gitHubApiClient.post(replyUrl, Map.of("body", content), new ParameterizedTypeReference<>() {});
 
         String issueUrl = String.format(
                 "https://api.github.com/repos/%s/%s/issues/%d",
-                username, contentRepo, issueNumber
+                ownerUsername, contentRepo, issueNumber
         );
         Map<String, Object> issue = gitHubApiClient.get(issueUrl, new ParameterizedTypeReference<>() {});
-        return mapToGuestbookResponse(issue);
+        return mapToCommentResponse(issue);
     }
 
-    // 기존 그대로 — 변경 없음
-    public void deleteGuestbook(Long id, String requestingUser) {
+    public void deleteComment(Long issueNumber, String requestingUser) {
         String issueUrl = String.format(
                 "https://api.github.com/repos/%s/%s/issues/%d",
-                username, contentRepo, id
+                ownerUsername, contentRepo, issueNumber
         );
         Map<String, Object> issue = gitHubApiClient.get(issueUrl, new ParameterizedTypeReference<>() {});
-        String rawBody = (String) issue.get("body");
-        String author = parseAuthor(rawBody);
+        String author = parseAuthor((String) issue.get("body"));
 
-        if (!requestingUser.equals(author)) {
-            throw new CustomException(HttpStatus.FORBIDDEN, "자신의 방명록만 삭제할 수 있습니다.");
+        if (!requestingUser.equals(author) && !requestingUser.equals(ownerUsername)) {
+            throw new CustomException(HttpStatus.FORBIDDEN, "댓글 작성자 또는 주인장만 삭제할 수 있습니다.");
         }
         gitHubApiClient.patchWithPost(issueUrl, Map.of("state", "closed"));
     }
 
     @SuppressWarnings("unchecked")
-    private GuestbookResponseDto mapToGuestbookResponse(Map<String, Object> issue) {
+    private CommentResponseDto mapToCommentResponse(Map<String, Object> issue) {
         String rawBody = (String) issue.get("body");
-        String author = parseAuthor(rawBody);
-        String avatarUrl = parseAvatarUrl(rawBody);
-        String content = stripMeta(rawBody);
-
-        if (author == null) {
-            Map<String, Object> user = (Map<String, Object>) issue.get("user");
-            author = (String) user.get("login");
-            avatarUrl = (String) user.get("avatar_url");
-            content = rawBody;
-        }
-
         Long issueNumber = ((Number) issue.get("number")).longValue();
-        return GuestbookResponseDto.builder()
+        return CommentResponseDto.builder()
                 .id(issueNumber)
-                .title((String) issue.get("title"))
-                .content(content)
-                .author(author)
-                .avatarUrl(avatarUrl)
+                .author(parseAuthor(rawBody))
+                .avatarUrl(parseAvatarUrl(rawBody))
+                .content(stripMeta(rawBody))
                 .createdAt((String) issue.get("created_at"))
-                .reply(fetchReply(issueNumber))   // 추가
+                .reply(fetchReply(issueNumber))
                 .build();
     }
 
-    // 신규
     @SuppressWarnings("unchecked")
     private ReplyDto fetchReply(Long issueNumber) {
         String url = String.format(
                 "https://api.github.com/repos/%s/%s/issues/%d/comments",
-                username, contentRepo, issueNumber
+                ownerUsername, contentRepo, issueNumber
         );
         List<Map<String, Object>> comments = gitHubApiClient.get(url, new ParameterizedTypeReference<>() {});
         if (comments == null || comments.isEmpty()) return null;
 
         Map<String, Object> first = comments.get(0);
         Map<String, Object> user = (Map<String, Object>) first.get("user");
-        if (!username.equals(user.get("login"))) return null;
+        if (!ownerUsername.equals(user.get("login"))) return null;
 
         return ReplyDto.builder()
                 .content((String) first.get("body"))
@@ -141,16 +128,22 @@ public class GuestbookService {
                 .build();
     }
 
-    private String parseAuthor(String body) {
+    private String parseFilename(String body) {
         if (body == null) return null;
         Matcher m = META_PATTERN.matcher(body);
         return m.find() ? m.group(1) : null;
     }
 
-    private String parseAvatarUrl(String body) {
+    private String parseAuthor(String body) {
         if (body == null) return null;
         Matcher m = META_PATTERN.matcher(body);
         return m.find() ? m.group(2) : null;
+    }
+
+    private String parseAvatarUrl(String body) {
+        if (body == null) return null;
+        Matcher m = META_PATTERN.matcher(body);
+        return m.find() ? m.group(3) : null;
     }
 
     private String stripMeta(String body) {
