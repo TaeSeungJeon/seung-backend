@@ -40,12 +40,13 @@ public class CommentController {
         return ResponseEntity.ok(commentService.createReply(id, req.getContent(), username));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteComment(
+    @DeleteMapping("/{id}/reply")
+    public ResponseEntity<Void> deleteReply(
             @PathVariable Long id,
             @AuthenticationPrincipal String username
     ) {
-        commentService.deleteComment(id, username);
+        commentService.deleteReply(id, username);
         return ResponseEntity.noContent().build();
     }
+
 }

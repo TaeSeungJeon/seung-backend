@@ -133,9 +133,10 @@ public class GuestbookService {
 
         Map<String, Object> first = comments.get(0);
         Map<String, Object> user = (Map<String, Object>) first.get("user");
-        if (!username.equals(user.get("login"))) return null;
+        if (!username.equalsIgnoreCase((String) user.get("login"))) return null;
 
         return ReplyDto.builder()
+                .avatarUrl((String) user.get("avatar_url"))
                 .content((String) first.get("body"))
                 .createdAt((String) first.get("created_at"))
                 .build();
@@ -157,4 +158,33 @@ public class GuestbookService {
         if (body == null) return "";
         return META_PATTERN.matcher(body).replaceFirst("").trim();
     }
+
+    @SuppressWarnings("unchecked")
+    public void deleteGuestbookReply(Long issueNumber, String requestingUser) {
+        if (!requestingUser.equalsIgnoreCase(username)) {
+            throw new CustomException(HttpStatus.FORBIDDEN, "답글은 블로그 주인만 삭제할 수 있습니다.");
+        }
+        String commentsUrl = String.format(
+                "https://api.github.com/repos/%s/%s/issues/%d/comments",
+                username, contentRepo, issueNumber
+        );
+        List<Map<String, Object>> comments = gitHubApiClient.get(commentsUrl, new ParameterizedTypeReference<>() {});
+        if (comments == null || comments.isEmpty()) return;
+
+        comments.stream()
+                .filter(c -> {
+                    Map<String, Object> user = (Map<String, Object>) c.get("user");
+                    return username.equalsIgnoreCase((String) user.get("login"));
+                })
+                .findFirst()
+                .ifPresent(c -> {
+                    Long commentId = ((Number) c.get("id")).longValue();
+                    String deleteUrl = String.format(
+                            "https://api.github.com/repos/%s/%s/issues/comments/%d",
+                            username, contentRepo, commentId
+                    );
+                    gitHubApiClient.delete(deleteUrl);
+                });
+    }
+
 }

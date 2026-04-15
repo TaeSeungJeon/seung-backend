@@ -41,12 +41,12 @@ public class GuestbookController {
         return ResponseEntity.ok(guestbookService.createGuestbookReply(id, req.getContent(), username));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteGuestbook(
+    @DeleteMapping("/{id}/reply")
+    public ResponseEntity<Void> deleteGuestbookReply(
             @PathVariable Long id,
             @AuthenticationPrincipal String username
     ) {
-        guestbookService.deleteGuestbook(id, username);
+        guestbookService.deleteGuestbookReply(id, username);
         return ResponseEntity.noContent().build();
     }
 }

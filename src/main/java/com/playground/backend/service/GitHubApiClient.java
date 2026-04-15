@@ -18,6 +18,9 @@ public class GitHubApiClient {
 
     private final RestTemplate restTemplate;
 
+    public void delete(String url) {
+        restTemplate.exchange(url, HttpMethod.DELETE, new HttpEntity<>(createHeaders()), Void.class);
+    }
     // 공통 헤더 생성
     private HttpHeaders createHeaders() {
         HttpHeaders headers = new HttpHeaders();

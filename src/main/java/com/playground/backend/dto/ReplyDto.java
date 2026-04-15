@@ -8,4 +8,5 @@ import lombok.Getter;
 public class ReplyDto {
     private String content;
     private String createdAt;
+    private String avatarUrl;
 }
