@@ -63,7 +63,7 @@ public class GuestbookService {
     // 신규 — 오너만 답글
     public GuestbookResponseDto createGuestbookReply(Long issueNumber, String content, String requestingUser) {
         if (!requestingUser.equals(username)) {
-            throw new CustomException(HttpStatus.FORBIDDEN, "방명록 답글은 블로그 주인만 작성할 수 있습니다.");
+            throw new CustomException(HttpStatus.FORBIDDEN, "방명록 답글은 관리자만 작성할 수 있습니다.");
         }
         String replyUrl = String.format(
                 "https://api.github.com/repos/%s/%s/issues/%d/comments",
@@ -89,9 +89,10 @@ public class GuestbookService {
         String rawBody = (String) issue.get("body");
         String author = parseAuthor(rawBody);
 
-        if (!requestingUser.equals(author)) {
+        if (!requestingUser.equals(author) && !requestingUser.equals(username)) {
             throw new CustomException(HttpStatus.FORBIDDEN, "자신의 방명록만 삭제할 수 있습니다.");
         }
+
         gitHubApiClient.patchWithPost(issueUrl, Map.of("state", "closed"));
     }
 
@@ -162,7 +163,7 @@ public class GuestbookService {
     @SuppressWarnings("unchecked")
     public void deleteGuestbookReply(Long issueNumber, String requestingUser) {
         if (!requestingUser.equalsIgnoreCase(username)) {
-            throw new CustomException(HttpStatus.FORBIDDEN, "답글은 블로그 주인만 삭제할 수 있습니다.");
+            throw new CustomException(HttpStatus.FORBIDDEN, "답글은 관리자만 삭제할 수 있습니다.");
         }
         String commentsUrl = String.format(
                 "https://api.github.com/repos/%s/%s/issues/%d/comments",
